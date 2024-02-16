@@ -20,6 +20,7 @@ self.addEventListener('activate', (ev) => {
 });
 self.addEventListener('fetch', (ev) => {
   //try the cache first, then fetch and save copy in cache
+  ev.respondWith(cacheFirstAndSave(ev));
 });
 
 function cacheFirst(ev) {
@@ -30,6 +31,21 @@ function cacheFirst(ev) {
 }
 function cacheFirstAndSave(ev) {
   //try cache then fetch
+  return caches.match(ev.request).then((cacheResponse) => {
+    return cacheResponse || fetch(ev.request).then(fetchResp => {
+      if (fetchResp.status > 0 && !fetchResp.ok) throw new Error('Failed to fetch - Bad response'); // will just return a 404 || throw the error IF not opaque AND not in the 200-299 range
+      //save a copy of the response in the cache
+      return caches.open(cacheName).then(cache => {
+        return cache.put(ev.request, fetchResp.clone());
+      }).then(() => {
+        //return the original response
+        // finished putting the copy in the cache
+        return fetchResp; // send the response to the browser
+      })
+    }).catch(err => {
+      return response404();
+    });
+  });
 }
 function response404() {
   //any generic 404 error that we want to generate
